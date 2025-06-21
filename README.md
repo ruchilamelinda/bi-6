@@ -73,7 +73,8 @@ Dashboard akan terbuka di browser pada `http://localhost:5000` atau alamat yang 
 │   └── app.py
 ├── etl/
 │   └── etl_process.py
-├── schema.sql
+├── dw/
+│   └── schema.sql
 ├── requirements.txt
 └── README.md
 ```
