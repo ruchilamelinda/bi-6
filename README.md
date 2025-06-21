@@ -101,4 +101,3 @@ Jika butuh bantuan lebih lanjut, silakan hubungi anggota kelompok melalui platfo
 
 ---
 
-Ingin README-nya juga dalam versi Bahasa Inggris? Let me know!
