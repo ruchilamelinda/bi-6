@@ -173,60 +173,102 @@ def create_filters(df):
     ], className="filters-section")
 
 def create_data_input(df):
-    """Form Analisis Aplikasi"""
+    """Form Analisis Aplikasi dengan Visualisasi di Main Content"""
     return html.Div([
-        html.H3("➕ Tambah Data Aplikasi Baru", className="section-title"),
+        html.H3("➕ Analisis Aplikasi Baru", className="section-title"),
         html.Div([
-            # Bagian input form yang sudah ada (tidak diubah)
+            # Form Input
             html.Div([
-                html.Label("Nama Aplikasi:", className="input-label"),
-                dcc.Input(id='input-app-name', placeholder='Masukkan nama aplikasi', className="data-input"),
-            ], className="input-group"),
-            
-            html.Div([
-                html.Label("Kategori:", className="input-label"),
-                dcc.Dropdown(
-                    id='input-category',
-                    options=[{'label': cat, 'value': cat} for cat in sorted(df['category'].unique())] if not df.empty else [],
-                    placeholder='Pilih kategori',
-                    className="data-input"
+                html.Div([
+                    html.Label("Nama Aplikasi:", className="input-label"),
+                    dcc.Input(id='input-app-name', placeholder='Contoh: Aplikasi Toko Online', className="data-input"),
+                ], className="input-group"),
+                
+                html.Div([
+                    html.Label("Kategori:", className="input-label"),
+                    dcc.Dropdown(
+                        id='input-category',
+                        options=[{'label': cat, 'value': cat} for cat in sorted(df['category'].unique())] if not df.empty else [],
+                        placeholder='Pilih kategori...',
+                        className="data-input"
+                    ),
+                ], className="input-group"),
+                
+                html.Div([
+                    html.Label("Rating (1-5):", className="input-label"),
+                    dcc.Input(
+                        id='input-rating',
+                        placeholder='4.2',
+                        type='number',
+                        min=1,
+                        max=5,
+                        step=0.1,
+                        className="data-input"
+                    ),
+                ], className="input-group"),
+                
+                html.Div([
+                    html.Label("Jumlah Install:", className="input-label"),
+                    dcc.Input(
+                        id='input-installs',
+                        placeholder='1000000',
+                        type='number',
+                        className="data-input"
+                    ),
+                ], className="input-group"),
+                
+                html.Div([
+                    html.Label("Ukuran (MB):", className="input-label"),
+                    dcc.Input(
+                        id='input-size',
+                        placeholder='15.5',
+                        type='number',
+                        step=0.1,
+                        className="data-input"
+                    ),
+                ], className="input-group"),
+                
+                html.Button(
+                    'Analisis Sekarang',
+                    id='add-app-btn',
+                    className="add-btn",
+                    n_clicks=0
                 ),
-            ], className="input-group"),
+                
+                html.Div(id='add-app-output', className="input-feedback"),
+            ], className="input-container"),
             
-            html.Div([
-                html.Label("Rating (1-5):", className="input-label"),
-                dcc.Input(id='input-rating', placeholder='4.5', type='number', 
-                         min=1, max=5, step=0.1, className="data-input"),
-            ], className="input-group"),
-            
-            html.Div([
-                html.Label("Jumlah Install:", className="input-label"),
-                dcc.Input(id='input-installs', placeholder='1000000', type='number', className="data-input"),
-            ], className="input-group"),
-            
-            html.Div([
-                html.Label("Ukuran (MB):", className="input-label"),
-                dcc.Input(id='input-size', placeholder='25', type='number', className="data-input"),
-            ], className="input-group"),
-            
-            html.Button('Tambah Data', id='add-app-btn', className="add-btn", n_clicks=0),
-            html.Div(id='add-app-output', className="input-feedback"),
-            
-            # ===== BAGIAN YANG DITAMBAHKAN =====
-            html.Div(
-                id='success-analysis',
-                className='analysis-container',
-                style={
-                    'marginTop': '20px',
-                    'padding': '15px',
-                    'borderRadius': '8px',
-                    'backgroundColor': '#f8f9fa',
-                    'border': '1px solid #dee2e6'
-                }
-            )
-            # ===== END OF BAGIAN YANG DITAMBAHKAN =====
-        ], className="input-container")
+            # Area Visualisasi - Disederhanakan tanpa tabs
+            html.Div(id='app-analysis-results', style={'marginTop': '30px'})
+        ], className="main-container")
     ], className="input-section")
+def create_rating_comparison(new_app, existing_data):
+    df = pd.DataFrame(existing_data) if existing_data else pd.DataFrame()
+    
+    # Hitung rata-rata
+    category_avg = df[df['category'] == new_app['category']]['rating'].mean() if not df.empty else 0
+    overall_avg = df['rating'].mean() if not df.empty else 0
+    
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=['Aplikasi Baru', 'Rata-rata Kategori', 'Rata-rata Global'],
+        y=[new_app['rating'], category_avg, overall_avg],
+        marker_color=['#01875f', '#4285f4', '#ea4335'],
+        text=[f"{y:.2f}" for y in [new_app['rating'], category_avg, overall_avg]],
+        textposition='auto'
+    ))
+    
+    fig.update_layout(
+        title='<b>Perbandingan Rating</b>',
+        yaxis_title='Rating',
+        yaxis_range=[0, 5.2],
+        template='plotly_white',
+        height=400
+    )
+    
+    return fig
+
 
 def filter_data(categories, price_type, rating_range, stored_data):
     if not stored_data:
@@ -419,6 +461,343 @@ def handle_add_app(n_clicks, app_name, category, rating, installs, size, current
     
     return updated_data, success_msg, analysis_result
 
+# [Previous imports remain the same...]
+
+# ==================================================================
+# NEW VISUALIZATION FUNCTIONS (ADDED TO EXISTING FILE)
+# ==================================================================
+
+def create_installs_comparison(new_app, existing_data):
+    """
+    Membuat bar chart perbandingan install (skala logaritmik)
+    """
+    df = pd.DataFrame(existing_data) if existing_data else pd.DataFrame()
+    
+    # Hitung statistik
+    category_mask = (df['category'] == new_app['category']) if not df.empty else []
+    category_median = df.loc[category_mask, 'total_installs'].median() if not df.empty and any(category_mask) else 0
+    overall_median = df['total_installs'].median() if not df.empty else 0
+    
+    # Format teks
+    def format_installs(num):
+        if num >= 1e6:
+            return f"{num/1e6:.1f}M"
+        elif num >= 1e3:
+            return f"{num/1e3:.0f}K"
+        return str(num)
+    
+    # Buat figure
+    fig = go.Figure()
+    
+    fig.add_trace(go.Bar(
+        x=['Aplikasi Baru', 'Median Kategori', 'Median Global'],
+        y=[new_app['total_installs'], category_median, overall_median],
+        marker_color=['#01875f', '#4285f4', '#ea4335'],
+        text=[format_installs(y) for y in [new_app['total_installs'], category_median, overall_median]],
+        textposition='outside'
+    ))
+    
+    fig.update_layout(
+        title={
+            'text': "<b>Perbandingan Jumlah Install</b>",
+            'y':0.9,
+            'x':0.5,
+            'xanchor': 'center'
+        },
+        yaxis_title='Jumlah Install',
+        yaxis_type='log',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=400,
+        margin={'t': 60, 'b': 40, 'l': 60, 'r': 20}
+    )
+    
+    return fig
+
+def create_radar_analysis(new_app, existing_data):
+    """
+    Membuat radar chart untuk analisis 4 faktor utama
+    """
+    df = pd.DataFrame(existing_data) if existing_data else pd.DataFrame()
+    category_mask = (df['category'] == new_app['category']) if not df.empty else []
+    
+    # Normalisasi data (0-1)
+    max_installs = df['total_installs'].max() if not df.empty else 1
+    max_size = df['size_mb'].max() if not df.empty else 1
+    
+    # Hitung metrik
+    metrics = {
+        'Rating': (
+            new_app['rating'] / 5,
+            df.loc[category_mask, 'rating'].mean() / 5 if any(category_mask) else 0
+        ),
+        'Installs': (
+            min(1, new_app['total_installs'] / max_installs),
+            min(1, df.loc[category_mask, 'total_installs'].median() / max_installs) if any(category_mask) else 0
+        ),
+        'Ukuran': (
+            1 - (new_app['size_mb'] / max_size),
+            1 - (df.loc[category_mask, 'size_mb'].median() / max_size) if any(category_mask) else 0
+        ),
+        'Kepuasan': (
+            (new_app['rating'] / 5) * 0.7 + (min(1, new_app['total_installs'] / max_installs) * 0.3),
+            (df.loc[category_mask, 'rating'].mean() / 5 * 0.7 + 
+             min(1, df.loc[category_mask, 'total_installs'].median() / max_installs) * 0.3) if any(category_mask) else 0
+        )
+    }
+    
+    # Buat figure
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatterpolar(
+        r=[val[0] for val in metrics.values()],
+        theta=list(metrics.keys()),
+        fill='toself',
+        name='Aplikasi Baru',
+        line={'color': '#01875f', 'width': 2},
+        opacity=0.8
+    ))
+    
+    fig.add_trace(go.Scatterpolar(
+        r=[val[1] for val in metrics.values()],
+        theta=list(metrics.keys()),
+        fill='toself',
+        name='Rata-rata Kategori',
+        line={'color': '#4285f4', 'width': 2},
+        opacity=0.5
+    ))
+    
+    fig.update_layout(
+        polar={
+            'radialaxis': {
+                'visible': True,
+                'range': [0, 1],
+                'tickvals': [0, 0.5, 1],
+                'ticktext': ['Rendah', 'Sedang', 'Tinggi']
+            },
+            'bgcolor': 'rgba(0,0,0,0)'
+        },
+        title={
+            'text': "<b>Analisis Komprehensif</b><br><span style='font-size:12px'>Skala Normalisasi (0-1)</span>",
+            'y': 0.95,
+            'x': 0.5
+        },
+        legend={
+            'orientation': 'h',
+            'yanchor': 'bottom',
+            'y': -0.2
+        },
+        height=500,
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    
+    return fig
+
+def create_category_trend(new_app, existing_data):
+    """
+    Membuat line chart trend rating kategori per tahun
+    """
+    df = pd.DataFrame(existing_data) if existing_data else pd.DataFrame()
+    
+    if df.empty or 'release_year' not in df.columns:
+        return go.Figure()
+    
+    # Hitung trend
+    trend_data = df[df['category'] == new_app['category']]
+    if trend_data.empty:
+        return go.Figure()
+    
+    trend_data = trend_data.groupby('release_year')['rating'].agg(['mean', 'count']).reset_index()
+    
+    # Buat figure
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=trend_data['release_year'],
+        y=trend_data['mean'],
+        mode='lines+markers',
+        name='Rating Rata-rata',
+        line={'color': '#01875f', 'width': 3},
+        marker={'size': 8},
+        text=[
+            f"Tahun: {year}<br>Rating: {rating:.2f}<br>Jumlah Aplikasi: {count}" 
+            for year, rating, count in zip(
+                trend_data['release_year'],
+                trend_data['mean'],
+                trend_data['count']
+            )
+        ],
+        hoverinfo='text'
+    ))
+    
+    fig.add_hline(
+        y=df['rating'].mean(),
+        line={'dash': 'dash', 'color': '#ea4335', 'width': 2},
+        annotation_text="Rata-rata Global",
+        annotation_position="bottom right"
+    )
+    
+    fig.update_layout(
+        title={
+            'text': f"<b>Trend Rating Kategori {new_app['category']}</b>",
+            'y':0.9,
+            'x':0.5
+        },
+        xaxis_title='Tahun',
+        yaxis_title='Rating Rata-rata',
+        yaxis_range=[0, 5.2],
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=400,
+        hovermode='x unified'
+    )
+    
+    return fig
+
+def create_comparison_table(new_app, existing_data):
+    """
+    Membuat tabel perbandingan metrik utama
+    """
+    df = pd.DataFrame(existing_data) if existing_data else pd.DataFrame()
+    category_mask = (df['category'] == new_app['category']) if not df.empty else []
+    
+    # Hitung statistik
+    is_category_exist = any(category_mask) if not df.empty else False
+    
+    category_stats = {
+        'rating_mean': df.loc[category_mask, 'rating'].mean() if is_category_exist else '-',
+        'installs_median': df.loc[category_mask, 'total_installs'].median() if is_category_exist else '-',
+        'size_median': df.loc[category_mask, 'size_mb'].median() if is_category_exist else '-',
+        'free_percentage': round(
+            df.loc[category_mask, 'price_type'].value_counts(normalize=True).get('Free', 0) * 100
+        ) if is_category_exist else '-'
+    }
+    
+    # Format data
+    comparison_data = [
+        {
+            'Metrik': 'Rating',
+            'Aplikasi Baru': f"{new_app['rating']:.1f}",
+            'Rata-rata Kategori': f"{category_stats['rating_mean']:.1f}" if isinstance(category_stats['rating_mean'], float) else '-',
+            'Keterangan': get_rating_feedback(new_app['rating'], category_stats['rating_mean'])
+        },
+        {
+            'Metrik': 'Jumlah Install',
+            'Aplikasi Baru': f"{new_app['total_installs']:,}",
+            'Rata-rata Kategori': f"{category_stats['installs_median']:,}" if isinstance(category_stats['installs_median'], (int, float)) else '-',
+            'Keterangan': get_installs_feedback(new_app['total_installs'], category_stats['installs_median'])
+        },
+        {
+            'Metrik': 'Ukuran (MB)',
+            'Aplikasi Baru': f"{new_app['size_mb']:.1f}",
+            'Rata-rata Kategori': f"{category_stats['size_median']:.1f}" if isinstance(category_stats['size_median'], float) else '-',
+            'Keterangan': "✅ Ideal" if new_app['size_mb'] <= 15 else "⚠️ Terlalu besar"
+        },
+        {
+            'Metrik': 'Model Harga',
+            'Aplikasi Baru': 'Gratis',
+            'Rata-rata Kategori': f"{category_stats['free_percentage']}% Gratis" if isinstance(category_stats['free_percentage'], int) else '-',
+            'Keterangan': "✅ Dominan" if isinstance(category_stats['free_percentage'], int) and category_stats['free_percentage'] > 50 else "⚠️ Berbayar lebih umum"
+        }
+    ]
+    
+    # Buat tabel
+    table = dash_table.DataTable(
+        data=comparison_data,
+        columns=[
+            {"name": "Metrik", "id": "Metrik", "type": "text"},
+            {"name": "Aplikasi Baru", "id": "Aplikasi Baru", "type": "text"},
+            {"name": "Rata-rata Kategori", "id": "Rata-rata Kategori", "type": "text"},
+            {"name": "Keterangan", "id": "Keterangan", "type": "text"}
+        ],
+        style_table={
+            'overflowX': 'auto',
+            'borderRadius': '8px',
+            'boxShadow': '0 2px 5px rgba(0,0,0,0.1)'
+        },
+        style_cell={
+            'textAlign': 'left',
+            'padding': '12px',
+            'minWidth': '100px',
+            'backgroundColor': 'white'
+        },
+        style_header={
+            'backgroundColor': '#01875f',
+            'color': 'white',
+            'fontWeight': 'bold',
+            'border': 'none'
+        },
+        style_data_conditional=[
+            {
+                'if': {'column_id': 'Aplikasi Baru'},
+                'fontWeight': 'bold',
+                'borderLeft': '2px solid #01875f'
+            },
+            {
+                'if': {'filter_query': '{Keterangan} contains "⚠️"'},
+                'backgroundColor': 'rgba(234,67,53,0.1)'
+            }
+        ]
+    )
+    
+    return table
+
+def get_rating_feedback(app_rating, category_avg):
+    if not isinstance(category_avg, float):
+        return "Tidak ada data pembanding"
+    
+    diff = app_rating - category_avg
+    if diff > 0.5:
+        return "✅ Sangat kompetitif"
+    elif diff > 0:
+        return "👍 Lebih baik dari rata-rata"
+    elif diff > -0.5:
+        return "⚠️ Perlu peningkatan"
+    else:
+        return "❌ Jauh di bawah rata-rata"
+
+def get_installs_feedback(app_installs, category_median):
+    if not isinstance(category_median, (int, float)):
+        return "Tidak ada data pembanding"
+    
+    ratio = app_installs / category_median if category_median > 0 else 1
+    if ratio > 2:
+        return "🚀 Potensi viral"
+    elif ratio > 1:
+        return "✅ Di atas rata-rata"
+    elif ratio > 0.5:
+        return "📈 Cukup kompetitif"
+    else:
+        return "⚠️ Perlu strategi marketing"
+
+def _get_rating_feedback(app_rating, category_avg):
+    if not isinstance(category_avg, float):
+        return "Tidak ada data pembanding"
+    
+    diff = app_rating - category_avg
+    if diff > 0.5:
+        return "✅ Sangat kompetitif"
+    elif diff > 0:
+        return "👍 Lebih baik dari rata-rata"
+    elif diff > -0.5:
+        return "⚠️ Perlu peningkatan"
+    else:
+        return "❌ Jauh di bawah rata-rata"
+
+def _get_installs_feedback(app_installs, category_median):
+    if not isinstance(category_median, (int, float)):
+        return "Tidak ada data pembanding"
+    
+    ratio = app_installs / category_median if category_median > 0 else 1
+    if ratio > 2:
+        return "🚀 Potensi viral"
+    elif ratio > 1:
+        return "✅ Di atas rata-rata"
+    elif ratio > 0.5:
+        return "📈 Cukup kompetitif"
+    else:
+        return "⚠️ Perlu strategi marketing"
+
+# [Rest of your existing functions remain unchanged...]
+
 def render_content(active_tab, filtered_data):
     if not filtered_data:
         return html.Div("Tidak ada data yang tersedia untuk filter yang dipilih", className="no-data-message")
@@ -488,57 +867,82 @@ def create_overview_content(dff):
     ])
 
 def create_success_factors_content(dff):
-    # Hitung skor kesuksesan (kombinasi rating dan installs)
-    dff['skor_kesuksesan'] = (dff['rating'] * 0.6) + (np.log10(dff['total_installs']) * 0.4)
-    
-    # Visualisasi faktor kesuksesan
-    success_fig = px.scatter(
-        dff,
-        x='rating',
-        y='total_installs',
-        color='skor_kesuksesan',
-        size='total_reviews',
-        log_y=True,
-        title='<b>Faktor Kesuksesan Aplikasi</b><br><span style="font-size:14px">Aplikasi sukses memiliki rating tinggi dan banyak install</span>',
-        hover_data=['app_name', 'category'],
-        labels={'rating': 'Rating', 'total_installs': 'Total Install (log)'}
-    )
-    success_fig.update_layout(template='plotly_white', height=600)
-    
-    # 10 aplikasi teratas
-    top_apps = dff.nlargest(10, 'skor_kesuksesan')[['app_name', 'category', 'rating', 'total_installs']]
-    top_apps['Installs'] = top_apps['total_installs'].apply(lambda x: f"{x/1e6:.1f} Juta" if x >= 1e6 else f"{x/1e3:.0f} Ribu")
-    
-    return html.Div([
-        html.Div([
-            html.Div([
-                dcc.Graph(figure=success_fig),
-                html.P("Analisis hubungan antara rating, jumlah install, dan ulasan.", className="chart-description")
-            ], className="chart-container"),
-        ], className="row-charts"),
+    try:
+        # Pastikan dff adalah DataFrame
+        if not isinstance(dff, pd.DataFrame):
+            dff = pd.DataFrame(dff)
+            
+        # Validasi kolom yang diperlukan
+        required_columns = ['rating', 'total_installs', 'total_reviews', 'app_name', 'category']
+        for col in required_columns:
+            if col not in dff.columns:
+                raise ValueError(f"Kolom '{col}' tidak ditemukan dalam data")
         
-        html.Div([
-            html.H4("10 Aplikasi Paling Sukses", className="table-title"),
-            dash_table.DataTable(
-                data=top_apps.to_dict('records'),
-                columns=[
-                    {"name": "Nama Aplikasi", "id": "app_name"},
-                    {"name": "Kategori", "id": "category"},
-                    {"name": "Rating", "id": "rating"},
-                    {"name": "Installs", "id": "Installs"}
-                ],
-                style_table={'overflowX': 'auto'},
-                style_cell={'textAlign': 'left', 'padding': '10px'},
-                style_header={
-                    'backgroundColor': '#01875f',
-                    'color': 'white',
-                    'fontWeight': 'bold'
-                }
-            ),
-            html.P("Pelajari aplikasi top untuk memahami pola kesuksesan.", className="chart-description")
-        ], className="table-container")
-    ])
-
+        # Hitung skor kesuksesan (kombinasi rating dan installs)
+        # Handle missing values jika ada
+        dff['total_installs'] = pd.to_numeric(dff['total_installs'], errors='coerce').fillna(0)
+        dff['rating'] = pd.to_numeric(dff['rating'], errors='coerce').fillna(0)
+        dff['total_reviews'] = pd.to_numeric(dff['total_reviews'], errors='coerce').fillna(0)
+        
+        # Hitung skor dengan penanganan jika total_installs = 0
+        dff['skor_kesuksesan'] = (dff['rating'] * 0.6) + (np.log10(dff['total_installs'].replace(0, 1)) * 0.4)
+        
+        # Visualisasi faktor kesuksesan
+        success_fig = px.scatter(
+            dff,
+            x='rating',
+            y='total_installs',
+            color='skor_kesuksesan',
+            size='total_reviews',
+            log_y=True,
+            title='<b>Faktor Kesuksesan Aplikasi</b><br><span style="font-size:14px">Aplikasi sukses memiliki rating tinggi dan banyak install</span>',
+            hover_data=['app_name', 'category'],
+            labels={'rating': 'Rating', 'total_installs': 'Total Install (log)'}
+        )
+        success_fig.update_layout(template='plotly_white', height=600)
+        
+        # 10 aplikasi teratas
+        top_apps = dff.nlargest(10, 'skor_kesuksesan')[['app_name', 'category', 'rating', 'total_installs']].copy()
+        top_apps['Installs'] = top_apps['total_installs'].apply(
+            lambda x: f"{x/1e6:.1f} Juta" if x >= 1e6 else f"{x/1e3:.0f} Ribu" if x >= 1e3 else f"{x:.0f}"
+        )
+        
+        return html.Div([
+            html.Div([
+                html.Div([
+                    dcc.Graph(figure=success_fig),
+                    html.P("Analisis hubungan antara rating, jumlah install, dan ulasan.", className="chart-description")
+                ], className="chart-container"),
+            ], className="row-charts"),
+            
+            html.Div([
+                html.H4("10 Aplikasi Paling Sukses", className="table-title"),
+                dash_table.DataTable(
+                    data=top_apps.to_dict('records'),
+                    columns=[
+                        {"name": "Nama Aplikasi", "id": "app_name"},
+                        {"name": "Kategori", "id": "category"},
+                        {"name": "Rating", "id": "rating"},
+                        {"name": "Installs", "id": "Installs"}
+                    ],
+                    style_table={'overflowX': 'auto'},
+                    style_cell={'textAlign': 'left', 'padding': '10px'},
+                    style_header={
+                        'backgroundColor': '#01875f',
+                        'color': 'white',
+                        'fontWeight': 'bold'
+                    }
+                ),
+                html.P("Pelajari aplikasi top untuk memahami pola kesuksesan.", className="chart-description")
+            ], className="table-container")
+        ])
+        
+    except Exception as e:
+        return html.Div([
+            html.I(className="fas fa-exclamation-triangle", style={'color': '#ea4335'}),
+            f" Error dalam membuat konten faktor kesuksesan: {str(e)}"
+        ], className="error-message")
+    
 def create_revenue_insights_content(dff):
     # Fokus pada aplikasi berbayar
     paid_apps = dff[dff['price_type'] == 'Paid']
